@@ -47,7 +47,7 @@ HTML<!DOCTYPE html>
     <p>Help grow the game! Upload a photo and mark its exact location on the map.</p>
     <input type="file" id="photo-upload" accept="image/*">
     <div id="upload-map" style="height:320px; margin:15px 0; border:1px solid #ccc;"></div>
-    <button onclick="uploadPhoto()" style="padding:12px 30px; font-size:18px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;">
+    <button id="upload-button" style="padding:12px 30px; font-size:18px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;">
       Upload to Game
     </button>
   </div>
@@ -86,20 +86,20 @@ HTML<!DOCTYPE html>
     }).setView([45.4215, -75.6972], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetView</a>'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
     let guessMarker = null;
     let actualMarker = null;
-    let actualLat, actualLng, currentPhotoUrl;
+    let actualLat, actualLng;
 
     // ─── Load random photo from Supabase ───
     async function loadRandomPhoto() {
       const { data: photos, error } = await supabase.from('photos').select('*');
 
       if (error) {
-        console.error('Load error:', error);
-        alert('Error loading photos. Check console.');
+        console.error('Load photos error:', error);
+        alert('Error loading photos. Check console for details.');
         return;
       }
 
@@ -111,7 +111,6 @@ HTML<!DOCTYPE html>
 
       const random = photos[Math.floor(Math.random() * photos.length)];
       document.getElementById('guess-photo').src = random.url;
-      currentPhotoUrl = random.url;
       actualLat = random.lat;
       actualLng = random.lng;
 
@@ -129,7 +128,7 @@ HTML<!DOCTYPE html>
     });
 
     // Submit guess button
-    document.getElementById('submit-guess').onclick = function() {
+    document.getElementById('submit-guess').addEventListener('click', function() {
       if (!guessMarker) {
         alert('Click somewhere on the map to make your guess first!');
         return;
@@ -154,7 +153,7 @@ HTML<!DOCTYPE html>
 
       // Auto next round after delay
       setTimeout(loadRandomPhoto, 2800);
-    };
+    });
 
     // ─── Upload map & logic ───
     let uploadMap, uploadMarker;
@@ -178,40 +177,60 @@ HTML<!DOCTYPE html>
       const fileInput = document.getElementById('photo-upload');
       const file = fileInput.files[0];
 
-      if (!file) return alert('Please select a photo first.');
-      if (!uploadMarker) return alert('Please click the map to mark the exact location.');
+      if (!file) {
+        alert('Please select a photo first.');
+        return;
+      }
+      if (!uploadMarker) {
+        alert('Please click the map to mark the exact location.');
+        return;
+      }
 
       const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '')}`;
       const lat = uploadMarker.getLatLng().lat;
       const lng = uploadMarker.getLatLng().lng;
 
       try {
+        console.log('Starting upload...');
+
         // 1. Upload to Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('photos')
           .upload(fileName, file, { upsert: false });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError);
+          throw uploadError;
+        }
+        console.log('File uploaded successfully:', uploadData);
 
         // 2. Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('photos')
-          .getPublicUrl(fileName);
+        const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+        const publicUrl = urlData.publicUrl;
+        console.log('Public URL:', publicUrl);
 
-        // 3. Save record
+        // 3. Save to database
         const { error: dbError } = await supabase
           .from('photos')
           .insert({ url: publicUrl, lat, lng });
 
-        if (dbError) throw dbError;
+        if (dbError) {
+          console.error('Database insert error:', dbError);
+          throw dbError;
+        }
+
+        console.log('Photo record saved successfully');
 
         alert('Photo successfully added to the game! 🎉');
         fileInput.value = ''; // clear input
-        if (uploadMarker) { uploadMap.removeLayer(uploadMarker); uploadMarker = null; }
+        if (uploadMarker) {
+          uploadMap.removeLayer(uploadMarker);
+          uploadMarker = null;
+        }
         loadRandomPhoto(); // refresh game
       } catch (err) {
-        console.error(err);
-        alert('Upload failed: ' + (err.message || 'Unknown error'));
+        console.error('Upload process failed:', err);
+        alert('Upload failed – check the browser console (F12) for details:\n' + (err.message || 'Unknown error'));
       }
     }
 
@@ -219,6 +238,9 @@ HTML<!DOCTYPE html>
     window.onload = function() {
       initUploadMap();
       loadRandomPhoto();
+
+      // Attach upload button listener
+      document.getElementById('upload-button').addEventListener('click', uploadPhoto);
     };
   </script>
 </body>
