@@ -15,7 +15,21 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
 
 #game-container { position:relative; width:100vw; height:100vh; }
 
-#photo img { width:100%; height:100%; object-fit:cover; }
+/* FIXED IMAGE DISPLAY */
+#photo {
+  position:absolute;
+  width:100%; height:100%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:black;
+}
+
+#photo img {
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain; /* prevents blur/stretch */
+}
 
 #map {
   position:absolute; bottom:20px; right:20px;
@@ -58,16 +72,16 @@ button {
 }
 
 #upload-map { height:200px; margin-top:10px; }
-
-#end-screen .modal-box {
-  text-align:center;
-}
+#preview { width:100%; margin-top:10px; }
 </style>
 </head>
 
 <body>
 <div id="game-container">
-  <img id="game-image">
+  <div id="photo">
+    <img id="game-image">
+  </div>
+
   <div id="map"></div>
 
   <div id="hud">
@@ -87,6 +101,7 @@ button {
   <div class="modal-box">
     <h3>Upload</h3>
     <input type="file" id="photo-upload">
+    <img id="preview">
     <div id="upload-map"></div>
     <button id="upload-submit">Upload</button>
   </div>
@@ -106,43 +121,27 @@ button {
 <script>
 const supabaseClient = supabase.createClient('https://hqdljdibiggoyihuoabe.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo');
 
-// Ottawa bounds
-const OTTAWA_BOUNDS = L.latLngBounds(
-  [45.0, -76.5], // SW
-  [45.6, -75.0]  // NE
-);
+const OTTAWA_BOUNDS = L.latLngBounds([45.0, -76.5],[45.6, -75.0]);
 
-let map = L.map('map', {
-  maxBounds: OTTAWA_BOUNDS,
-  maxBoundsViscosity:1.0
-}).setView([45.4215,-75.6972],11);
-
+let map = L.map('map', {maxBounds:OTTAWA_BOUNDS,maxBoundsViscosity:1}).setView([45.4215,-75.6972],11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
 let uploadMap = L.map('upload-map').setView([45.4215,-75.6972],11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(uploadMap);
 
-let guessMarker, actualMarker, line;
+let guessMarker, actualMarker, line, uploadMarker;
 let actualLat, actualLng;
-let round = 1;
-let totalScore = 0;
-let scores = [];
+let round = 1, totalScore = 0, scores = [];
 let canGuess = false;
 
 async function loadRound() {
   const { data } = await supabaseClient.from('photos').select('*');
-
-  // Filter Ottawa-only
-  const ottawaPhotos = data.filter(p =>
-    OTTAWA_BOUNDS.contains([p.lat, p.lng])
-  );
-
+  const ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat,p.lng]));
   const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
 
   document.getElementById('game-image').src = random.url;
   actualLat = random.lat;
   actualLng = random.lng;
-
   resetMap();
 }
 
@@ -156,22 +155,19 @@ function resetMap() {
 
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('guess-btn').disabled = false;
-
   map.classList.remove('expanded');
 }
 
 map.on('click', e => {
   if (!canGuess) return;
-
   if (!OTTAWA_BOUNDS.contains(e.latlng)) return alert("Stay in Ottawa!");
 
   if (guessMarker) map.removeLayer(guessMarker);
   guessMarker = L.marker(e.latlng).addTo(map);
-
   document.getElementById('submit-btn').disabled = false;
 });
 
-// Buttons
+// BUTTONS
 
 document.getElementById('guess-btn').onclick = () => {
   canGuess = true;
@@ -180,19 +176,15 @@ document.getElementById('guess-btn').onclick = () => {
   document.getElementById('guess-btn').disabled = true;
 };
 
-// Submit
-
 document.getElementById('submit-btn').onclick = () => {
   const g = guessMarker.getLatLng();
-
-  actualMarker = L.marker([actualLat, actualLng]).addTo(map);
+  actualMarker = L.marker([actualLat,actualLng]).addTo(map);
 
   const dist = haversine(g.lat,g.lng,actualLat,actualLng);
   const score = Math.max(0, Math.round(5000 - dist*40));
 
   scores.push(score);
   totalScore += score;
-
   document.getElementById('score').innerText = totalScore;
 
   line = L.polyline([[g.lat,g.lng],[actualLat,actualLng]],{color:'red'}).addTo(map);
@@ -202,12 +194,7 @@ document.getElementById('submit-btn').onclick = () => {
 
 function nextRound() {
   round++;
-
-  if (round > 5) {
-    showEndScreen();
-    return;
-  }
-
+  if (round > 5) return showEndScreen();
   document.getElementById('round').innerText = round;
   loadRound();
 }
@@ -224,27 +211,82 @@ function showEndScreen() {
 }
 
 function restartGame() {
-  round = 1;
-  totalScore = 0;
-  scores = [];
-
+  round = 1; totalScore = 0; scores = [];
   document.getElementById('round').innerText = round;
   document.getElementById('score').innerText = totalScore;
-
   document.getElementById('end-screen').classList.remove('active');
-
   loadRound();
 }
+
+// FIXED UPLOAD MODAL
+const modal = document.getElementById('upload-modal');
+
+document.getElementById('upload-btn-open').onclick = () => {
+  modal.classList.add('active');
+  setTimeout(()=>uploadMap.invalidateSize(),200);
+};
+
+modal.onclick = e => { if (e.target === modal) modal.classList.remove('active'); };
+
+// PREVIEW
+
+document.getElementById('photo-upload').onchange = e => {
+  const file = e.target.files[0];
+  if (file) document.getElementById('preview').src = URL.createObjectURL(file);
+};
+
+uploadMap.on('click', e => {
+  if (uploadMarker) uploadMap.removeLayer(uploadMarker);
+  uploadMarker = L.marker(e.latlng).addTo(uploadMap);
+});
+
+function getCoords(file) {
+  return new Promise((resolve, reject) => {
+    EXIF.getData(file, function() {
+      const lat = EXIF.getTag(this, "GPSLatitude");
+      const lng = EXIF.getTag(this, "GPSLongitude");
+      if (!lat || !lng) return reject();
+      const convert = c => c[0] + c[1]/60 + c[2]/3600;
+      resolve({ lat: convert(lat), lng: convert(lng) });
+    });
+  });
+}
+
+// WORKING UPLOAD
+
+document.getElementById('upload-submit').onclick = async () => {
+  const file = document.getElementById('photo-upload').files[0];
+  if (!file) return alert("Select file");
+
+  let lat, lng;
+
+  try {
+    const coords = await getCoords(file);
+    lat = coords.lat;
+    lng = coords.lng;
+  } catch {
+    if (!uploadMarker) return alert("Click map for location");
+    lat = uploadMarker.getLatLng().lat;
+    lng = uploadMarker.getLatLng().lng;
+  }
+
+  const fileName = Date.now() + '-' + file.name;
+
+  await supabaseClient.storage.from('photos').upload(fileName, file);
+  const { data } = supabaseClient.storage.from('photos').getPublicUrl(fileName);
+
+  await supabaseClient.from('photos').insert({ url: data.publicUrl, lat, lng });
+
+  alert("Uploaded!");
+  modal.classList.remove('active');
+  loadRound();
+};
 
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2-lat1)*Math.PI/180;
   const dLon = (lon2-lon1)*Math.PI/180;
-
-  const a = Math.sin(dLat/2)**2 +
-    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
-    Math.sin(dLon/2)**2;
-
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
   return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
@@ -252,4 +294,5 @@ loadRound();
 </script>
 </body>
 </html>
+
 
