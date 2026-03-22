@@ -59,7 +59,7 @@ HTML<!DOCTYPE html>
     const supabaseUrl = 'https://hqdljdibiggoyihuoabe.supabase.co';          // ← YOUR PROJECT URL
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo';                     // ← anon key from Settings → API
 
-    const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
     // Haversine distance (km)
     function haversine(lat1, lon1, lat2, lon2) {
@@ -242,16 +242,7 @@ HTML<!DOCTYPE html>
       // Attach upload button listener
       document.getElementById('upload-button').addEventListener('click', uploadPhoto);
     };
-    window.addEventListener('DOMContentLoaded', () => {
-  // ... your other init code like initUploadMap(), loadRandomPhoto() ...
-
-  const uploadBtn = document.getElementById('upload-button');
-  if (uploadBtn) {
-    uploadBtn.addEventListener('click', uploadPhoto);
-  } else {
-    console.error('Upload button not found in DOM!');
-  }
-});
+    
   </script>
 </body>
 </html>
