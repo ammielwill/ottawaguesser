@@ -103,8 +103,7 @@ button {
   </div>
 
   <div id="controls">
-    <button id="guess-btn">Start Guess</button>
-    <button id="toggle-view" disabled>Back to Image</button>
+    <button id="toggle-map-btn">Open Map</button>
     <button id="submit-btn" disabled>Submit</button>
     <button id="upload-btn-open">Upload</button>
   </div>
@@ -133,7 +132,7 @@ button {
 </div>
 
 <script>
-const supabaseClient = supabase.createClient('https://hqdljdibiggoyihuoabe.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo');
+const supabaseClient = supabase.createClient('https://hqdljdibiggoyihuoabe.supabase.co','YOUR_KEY');
 
 const OTTAWA_BOUNDS = L.latLngBounds([45.0, -76.5],[45.6, -75.0]);
 
@@ -146,7 +145,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(uploadMa
 let guessMarker, actualMarker, line, uploadMarker;
 let actualLat, actualLng;
 let round = 1, totalScore = 0, scores = [];
-let canGuess = false;
 let mapOpen = false;
 
 async function loadRound() {
@@ -166,18 +164,16 @@ function resetMap() {
   if (line) map.removeLayer(line);
 
   guessMarker = null;
-  canGuess = false;
   mapOpen = false;
 
   document.getElementById('submit-btn').disabled = true;
-  document.getElementById('guess-btn').disabled = false;
-  document.getElementById('toggle-view').disabled = true;
+  document.getElementById('toggle-map-btn').innerText = "Open Map";
 
   map.classList.remove('expanded');
 }
 
 map.on('click', e => {
-  if (!canGuess) return;
+  if (!mapOpen) return;
   if (!OTTAWA_BOUNDS.contains(e.latlng)) return alert("Stay in Ottawa!");
 
   if (guessMarker) map.removeLayer(guessMarker);
@@ -185,28 +181,16 @@ map.on('click', e => {
   document.getElementById('submit-btn').disabled = false;
 });
 
-// START GUESS (open map)
-document.getElementById('guess-btn').onclick = () => {
-  canGuess = true;
-  mapOpen = true;
-
-  map.classList.add('expanded');
-  map.invalidateSize();
-
-  document.getElementById('guess-btn').disabled = true;
-  document.getElementById('toggle-view').disabled = false;
-};
-
-// TOGGLE VIEW (map <-> image)
-document.getElementById('toggle-view').onclick = () => {
+// TOGGLE MAP BUTTON (FIXED)
+document.getElementById('toggle-map-btn').onclick = () => {
   mapOpen = !mapOpen;
 
   if (mapOpen) {
     map.classList.add('expanded');
-    document.getElementById('toggle-view').innerText = "Back to Image";
+    document.getElementById('toggle-map-btn').innerText = "Close Map";
   } else {
     map.classList.remove('expanded');
-    document.getElementById('toggle-view').innerText = "Open Map";
+    document.getElementById('toggle-map-btn').innerText = "Open Map";
   }
 
   setTimeout(()=>map.invalidateSize(),200);
