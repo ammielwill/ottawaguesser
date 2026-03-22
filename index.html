@@ -3,219 +3,253 @@
 <head>
 <meta charset="UTF-8">
 <title>Ottawa Guesser Pro</title>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
 
 <style>
-body { margin:0; font-family:Arial; overflow:hidden; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hidden; }
 
 #game-container { position:relative; width:100vw; height:100vh; }
 
-#photo { position:absolute; width:100%; height:100%; background:black; display:flex; justify-content:center; align-items:center; }
 #photo img { width:100%; height:100%; object-fit:cover; }
 
-#map { position:absolute; bottom:20px; right:20px; width:300px; height:200px; border-radius:12px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.5); transition: all 0.3s ease; }
-#map.expanded { width:50%; height:50%; }
-
-#controls { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:10px; }
-button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; cursor:pointer; }
-#guess-btn { background:#3498db; color:white; }
-#submit-btn { background:#e74c3c; color:white; display:none; }
-#upload-toggle { background:#2ecc71; color:white; }
-
-#hud { position:absolute; top:20px; left:20px; color:white; background:rgba(0,0,0,0.5); padding:10px 15px; border-radius:8px; }
-
-/* Upload Panel */
-#upload-panel {
-  position:absolute;
-  top:0; right:-400px;
-  width:400px; height:100%;
-  background:white;
-  box-shadow:-4px 0 15px rgba(0,0,0,0.3);
-  transition: right 0.3s ease;
-  padding:20px;
-  overflow:auto;
+#map {
+  position:absolute; bottom:20px; right:20px;
+  width:280px; height:180px;
+  border-radius:14px; overflow:hidden;
+  transition:0.3s; z-index:10;
 }
-#upload-panel.open { right:0; }
-#upload-map { height:300px; margin-top:10px; }
+#map.expanded {
+  width:60%; height:60%;
+  bottom:50%; right:50%; transform:translate(50%,50%);
+}
+
+#hud {
+  position:absolute; top:20px; left:20px;
+  color:white; background:rgba(0,0,0,0.5);
+  padding:12px 18px; border-radius:12px;
+}
+
+#controls {
+  position:absolute; bottom:20px; left:50%;
+  transform:translateX(-50%);
+  display:flex; gap:12px;
+}
+
+button {
+  padding:12px 20px; border:none;
+  border-radius:10px; cursor:pointer;
+}
+
+#upload-modal, #end-screen {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.7);
+  display:none; justify-content:center; align-items:center;
+}
+.active { display:flex !important; }
+
+.modal-box {
+  background:white; padding:20px;
+  border-radius:16px; width:400px;
+}
+
+#upload-map { height:200px; margin-top:10px; }
+
+#end-screen .modal-box {
+  text-align:center;
+}
 </style>
 </head>
 
 <body>
 <div id="game-container">
-  <div id="photo">
-    <img id="game-image" src="">
-  </div>
-
+  <img id="game-image">
   <div id="map"></div>
 
-  <div id="controls">
-    <button id="guess-btn">Make Guess</button>
-    <button id="submit-btn">Submit Guess</button>
-    <button id="upload-toggle">Upload</button>
-  </div>
-
   <div id="hud">
-    <div>Round: <span id="round">1</span>/5</div>
-    <div>Score: <span id="score">0</span></div>
+    Round: <span id="round">1</span>/5<br>
+    Score: <span id="score">0</span>
   </div>
 
-  <!-- Upload Panel -->
-  <div id="upload-panel">
-    <h2>Upload Photo</h2>
-    <input type="file" id="photo-upload"><br><br>
+  <div id="controls">
+    <button id="guess-btn">Start Guess</button>
+    <button id="submit-btn" disabled>Submit</button>
+    <button id="upload-btn-open">Upload</button>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div id="upload-modal">
+  <div class="modal-box">
+    <h3>Upload</h3>
+    <input type="file" id="photo-upload">
     <div id="upload-map"></div>
-    <button id="upload-btn">Upload</button>
+    <button id="upload-submit">Upload</button>
+  </div>
+</div>
+
+<!-- End Game Screen -->
+<div id="end-screen">
+  <div class="modal-box">
+    <h2>Game Over</h2>
+    <p>Total Score: <span id="final-score"></span></p>
+    <p>Average Score: <span id="avg-score"></span></p>
+    <p>Best Round: <span id="best-round"></span></p>
+    <button onclick="restartGame()">Play Again</button>
   </div>
 </div>
 
 <script>
 const supabaseClient = supabase.createClient('https://hqdljdibiggoyihuoabe.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo');
 
-let map = L.map('map').setView([45.4215, -75.6972], 13);
+// Ottawa bounds
+const OTTAWA_BOUNDS = L.latLngBounds(
+  [45.0, -76.5], // SW
+  [45.6, -75.0]  // NE
+);
+
+let map = L.map('map', {
+  maxBounds: OTTAWA_BOUNDS,
+  maxBoundsViscosity:1.0
+}).setView([45.4215,-75.6972],11);
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-let uploadMap = L.map('upload-map').setView([45.4215, -75.6972], 13);
+let uploadMap = L.map('upload-map').setView([45.4215,-75.6972],11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(uploadMap);
 
-let guessMarker, actualMarker, uploadMarker;
+let guessMarker, actualMarker, line;
 let actualLat, actualLng;
 let round = 1;
 let totalScore = 0;
+let scores = [];
+let canGuess = false;
 
 async function loadRound() {
   const { data } = await supabaseClient.from('photos').select('*');
-  const random = data[Math.floor(Math.random()*data.length)];
+
+  // Filter Ottawa-only
+  const ottawaPhotos = data.filter(p =>
+    OTTAWA_BOUNDS.contains([p.lat, p.lng])
+  );
+
+  const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
 
   document.getElementById('game-image').src = random.url;
   actualLat = random.lat;
   actualLng = random.lng;
 
+  resetMap();
+}
+
+function resetMap() {
   if (guessMarker) map.removeLayer(guessMarker);
   if (actualMarker) map.removeLayer(actualMarker);
+  if (line) map.removeLayer(line);
+
+  guessMarker = null;
+  canGuess = false;
+
+  document.getElementById('submit-btn').disabled = true;
+  document.getElementById('guess-btn').disabled = false;
+
+  map.classList.remove('expanded');
 }
 
 map.on('click', e => {
-  if (!document.getElementById('submit-btn').style.display) return;
+  if (!canGuess) return;
+
+  if (!OTTAWA_BOUNDS.contains(e.latlng)) return alert("Stay in Ottawa!");
+
   if (guessMarker) map.removeLayer(guessMarker);
   guessMarker = L.marker(e.latlng).addTo(map);
+
+  document.getElementById('submit-btn').disabled = false;
 });
 
-uploadMap.on('click', e => {
-  if (uploadMarker) uploadMap.removeLayer(uploadMarker);
-  uploadMarker = L.marker(e.latlng).addTo(uploadMap);
-});
+// Buttons
+
+document.getElementById('guess-btn').onclick = () => {
+  canGuess = true;
+  map.classList.add('expanded');
+  map.invalidateSize();
+  document.getElementById('guess-btn').disabled = true;
+};
+
+// Submit
+
+document.getElementById('submit-btn').onclick = () => {
+  const g = guessMarker.getLatLng();
+
+  actualMarker = L.marker([actualLat, actualLng]).addTo(map);
+
+  const dist = haversine(g.lat,g.lng,actualLat,actualLng);
+  const score = Math.max(0, Math.round(5000 - dist*40));
+
+  scores.push(score);
+  totalScore += score;
+
+  document.getElementById('score').innerText = totalScore;
+
+  line = L.polyline([[g.lat,g.lng],[actualLat,actualLng]],{color:'red'}).addTo(map);
+
+  setTimeout(nextRound,2000);
+};
+
+function nextRound() {
+  round++;
+
+  if (round > 5) {
+    showEndScreen();
+    return;
+  }
+
+  document.getElementById('round').innerText = round;
+  loadRound();
+}
+
+function showEndScreen() {
+  const avg = Math.round(totalScore / scores.length);
+  const best = Math.max(...scores);
+
+  document.getElementById('final-score').innerText = totalScore;
+  document.getElementById('avg-score').innerText = avg;
+  document.getElementById('best-round').innerText = best;
+
+  document.getElementById('end-screen').classList.add('active');
+}
+
+function restartGame() {
+  round = 1;
+  totalScore = 0;
+  scores = [];
+
+  document.getElementById('round').innerText = round;
+  document.getElementById('score').innerText = totalScore;
+
+  document.getElementById('end-screen').classList.remove('active');
+
+  loadRound();
+}
 
 function haversine(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2-lat1)*Math.PI/180;
   const dLon = (lon2-lon1)*Math.PI/180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+    Math.sin(dLon/2)**2;
+
   return 2*R*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-
-// UI controls
-document.getElementById('guess-btn').onclick = () => {
-  document.getElementById('map').classList.add('expanded');
-  document.getElementById('submit-btn').style.display = 'inline-block';
-};
-
-document.getElementById('submit-btn').onclick = () => {
-  const guess = guessMarker.getLatLng();
-
-  actualMarker = L.marker([actualLat, actualLng]).addTo(map);
-
-  const dist = haversine(guess.lat, guess.lng, actualLat, actualLng);
-  const score = Math.max(0, Math.round(5000 - dist*40));
-
-  totalScore += score;
-  document.getElementById('score').innerText = totalScore;
-
-  L.polyline([[guess.lat, guess.lng],[actualLat, actualLng]], {color:'red'}).addTo(map);
-
-  setTimeout(() => {
-    round++;
-    if (round > 5) {
-      alert('Game Over! Score: ' + totalScore);
-      round = 1;
-      totalScore = 0;
-    }
-    document.getElementById('round').innerText = round;
-    document.getElementById('map').classList.remove('expanded');
-    document.getElementById('submit-btn').style.display = 'none';
-    loadRound();
-  }, 2500);
-};
-
-// Upload panel toggle
-const panel = document.getElementById('upload-panel');
-document.getElementById('upload-toggle').onclick = () => {
-  panel.classList.toggle('open');
-  setTimeout(()=>uploadMap.invalidateSize(),300);
-};
-
-// EXIF GPS extraction
-function getCoords(file) {
-  return new Promise((resolve, reject) => {
-    EXIF.getData(file, function() {
-      const lat = EXIF.getTag(this, "GPSLatitude");
-      const lng = EXIF.getTag(this, "GPSLongitude");
-      const latRef = EXIF.getTag(this, "GPSLatitudeRef");
-      const lngRef = EXIF.getTag(this, "GPSLongitudeRef");
-
-      if (!lat || !lng) return reject();
-
-      const convert = c => c[0] + c[1]/60 + c[2]/3600;
-      let finalLat = convert(lat);
-      let finalLng = convert(lng);
-
-      if (latRef === 'S') finalLat *= -1;
-      if (lngRef === 'W') finalLng *= -1;
-
-      resolve({ lat: finalLat, lng: finalLng });
-    });
-  });
-}
-
-// Upload logic
-async function uploadPhoto() {
-  const file = document.getElementById('photo-upload').files[0];
-  if (!file) return alert('Select file');
-
-  let lat, lng;
-
-  try {
-    const coords = await getCoords(file);
-    lat = coords.lat;
-    lng = coords.lng;
-  } catch {
-    if (!uploadMarker) return alert('No GPS found. Click map.');
-    lat = uploadMarker.getLatLng().lat;
-    lng = uploadMarker.getLatLng().lng;
-  }
-
-  const fileName = Date.now() + '-' + file.name;
-
-  try {
-    await supabaseClient.storage.from('photos').upload(fileName, file);
-
-    const { data } = supabaseClient.storage.from('photos').getPublicUrl(fileName);
-
-    await supabaseClient.from('photos').insert({ url: data.publicUrl, lat, lng });
-
-    alert('Uploaded!');
-    loadRound();
-  } catch (err) {
-    console.error(err);
-    alert('Upload failed');
-  }
-}
-
-document.getElementById('upload-btn').onclick = uploadPhoto;
 
 loadRound();
 </script>
 </body>
 </html>
+
