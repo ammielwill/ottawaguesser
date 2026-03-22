@@ -15,7 +15,6 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
 
 #game-container { position:relative; width:100vw; height:100vh; }
 
-/* FIXED IMAGE DISPLAY */
 #photo {
   position:absolute;
   width:100%; height:100%;
@@ -28,30 +27,44 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
 #photo img {
   max-width:100%;
   max-height:100%;
-  object-fit:contain; /* prevents blur/stretch */
+  object-fit:contain;
 }
 
 #map {
-  position:absolute; bottom:20px; right:20px;
-  width:280px; height:180px;
-  border-radius:14px; overflow:hidden;
-  transition:0.3s; z-index:10;
+  position:absolute;
+  bottom:0;
+  right:0;
+  width:280px;
+  height:180px;
+  border-radius:14px;
+  overflow:hidden;
+  transition:0.35s ease;
+  z-index:10;
 }
+
 #map.expanded {
-  width:60%; height:60%;
-  bottom:50%; right:50%; transform:translate(50%,50%);
+  top:0;
+  left:0;
+  width:100vw;
+  height:100vh;
+  border-radius:0;
 }
 
 #hud {
   position:absolute; top:20px; left:20px;
   color:white; background:rgba(0,0,0,0.5);
   padding:12px 18px; border-radius:12px;
+  z-index:20;
 }
 
 #controls {
-  position:absolute; bottom:20px; left:50%;
+  position:absolute;
+  bottom:20px;
+  left:50%;
   transform:translateX(-50%);
-  display:flex; gap:12px;
+  display:flex;
+  gap:12px;
+  z-index:20;
 }
 
 button {
@@ -91,6 +104,7 @@ button {
 
   <div id="controls">
     <button id="guess-btn">Start Guess</button>
+    <button id="toggle-view" disabled>Back to Image</button>
     <button id="submit-btn" disabled>Submit</button>
     <button id="upload-btn-open">Upload</button>
   </div>
@@ -133,6 +147,7 @@ let guessMarker, actualMarker, line, uploadMarker;
 let actualLat, actualLng;
 let round = 1, totalScore = 0, scores = [];
 let canGuess = false;
+let mapOpen = false;
 
 async function loadRound() {
   const { data } = await supabaseClient.from('photos').select('*');
@@ -152,9 +167,12 @@ function resetMap() {
 
   guessMarker = null;
   canGuess = false;
+  mapOpen = false;
 
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('guess-btn').disabled = false;
+  document.getElementById('toggle-view').disabled = true;
+
   map.classList.remove('expanded');
 }
 
@@ -167,15 +185,34 @@ map.on('click', e => {
   document.getElementById('submit-btn').disabled = false;
 });
 
-// BUTTONS
-
+// START GUESS (open map)
 document.getElementById('guess-btn').onclick = () => {
   canGuess = true;
+  mapOpen = true;
+
   map.classList.add('expanded');
   map.invalidateSize();
+
   document.getElementById('guess-btn').disabled = true;
+  document.getElementById('toggle-view').disabled = false;
 };
 
+// TOGGLE VIEW (map <-> image)
+document.getElementById('toggle-view').onclick = () => {
+  mapOpen = !mapOpen;
+
+  if (mapOpen) {
+    map.classList.add('expanded');
+    document.getElementById('toggle-view').innerText = "Back to Image";
+  } else {
+    map.classList.remove('expanded');
+    document.getElementById('toggle-view').innerText = "Open Map";
+  }
+
+  setTimeout(()=>map.invalidateSize(),200);
+};
+
+// SUBMIT
 document.getElementById('submit-btn').onclick = () => {
   const g = guessMarker.getLatLng();
   actualMarker = L.marker([actualLat,actualLng]).addTo(map);
@@ -218,7 +255,7 @@ function restartGame() {
   loadRound();
 }
 
-// FIXED UPLOAD MODAL
+// UPLOAD MODAL
 const modal = document.getElementById('upload-modal');
 
 document.getElementById('upload-btn-open').onclick = () => {
@@ -229,7 +266,6 @@ document.getElementById('upload-btn-open').onclick = () => {
 modal.onclick = e => { if (e.target === modal) modal.classList.remove('active'); };
 
 // PREVIEW
-
 document.getElementById('photo-upload').onchange = e => {
   const file = e.target.files[0];
   if (file) document.getElementById('preview').src = URL.createObjectURL(file);
@@ -252,8 +288,7 @@ function getCoords(file) {
   });
 }
 
-// WORKING UPLOAD
-
+// UPLOAD
 document.getElementById('upload-submit').onclick = async () => {
   const file = document.getElementById('photo-upload').files[0];
   if (!file) return alert("Select file");
@@ -294,5 +329,3 @@ loadRound();
 </script>
 </body>
 </html>
-
-
