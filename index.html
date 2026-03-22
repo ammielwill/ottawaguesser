@@ -163,30 +163,23 @@ let mapOpen = false;
 async function loadRound() {
   const { data } = await supabaseClient.from('photos').select('*');
 
-  // ensure photos exist
   if (!data || data.length === 0) {
-    alert("No photos found in database");
+    alert("No photos found");
     return;
   }
 
-  // Ottawa filter BUT fallback if empty
-  let ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat,p.lng]));
-  if (ottawaPhotos.length === 0) ottawaPhotos = data;
+  const ottawaPhotos = data.filter(p => 
+    OTTAWA_BOUNDS.contains([p.lat, p.lng])
+  );
 
-  const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
+  const pool = ottawaPhotos.length > 0 ? ottawaPhotos : data;
 
-  document.getElementById('game-image').src = random.url;
-  actualLat = random.lat;
-  actualLng = random.lng;
-
-  resetMap();
-} = await supabaseClient.from('photos').select('*');
-  const ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat,p.lng]));
-  const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
+  const random = pool[Math.floor(Math.random() * pool.length)];
 
   document.getElementById('game-image').src = random.url;
   actualLat = random.lat;
   actualLng = random.lng;
+
   resetMap();
 }
 
