@@ -242,6 +242,16 @@ HTML<!DOCTYPE html>
       // Attach upload button listener
       document.getElementById('upload-button').addEventListener('click', uploadPhoto);
     };
+    window.addEventListener('DOMContentLoaded', () => {
+  // ... your other init code like initUploadMap(), loadRandomPhoto() ...
+
+  const uploadBtn = document.getElementById('upload-button');
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', uploadPhoto);
+  } else {
+    console.error('Upload button not found in DOM!');
+  }
+});
   </script>
 </body>
 </html>
