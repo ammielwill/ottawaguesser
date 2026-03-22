@@ -172,11 +172,13 @@ async function loadRound() {
 }
 
 function resetMap() {
-  if (guessMarker) map.removeLayer(guessMarker);
-  if (actualMarker) map.removeLayer(actualMarker);
-  if (line) map.removeLayer(line);
+  if (guessMarker && map.hasLayer(guessMarker)) map.removeLayer(guessMarker);
+  if (actualMarker && map.hasLayer(actualMarker)) map.removeLayer(actualMarker);
+  if (line && map.hasLayer(line)) map.removeLayer(line);
 
   guessMarker = null;
+  actualMarker = null;
+  line = null;
   mapOpen = false;
 
   document.getElementById('submit-btn').disabled = true;
