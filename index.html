@@ -22,7 +22,7 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
   justify-content:center;
   align-items:center;
   background:black;
-  z-index:1; /* keep behind map */
+  z-index:1;
 }
 
 #photo img {
@@ -40,11 +40,11 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
   border-radius:14px;
   overflow:hidden;
   transition:0.35s ease;
-  z-index:30; /* ensure above image */
+  z-index:30;
 }
 
 #map.expanded {
-  position:fixed; /* force full screen */
+  position:fixed;
   top:0 !important;
   left:0 !important;
   right:auto !important;
@@ -53,14 +53,6 @@ body { margin:0; font-family:'Segoe UI',sans-serif; background:#111; overflow:hi
   height:100vh !important;
   border-radius:0;
   z-index:15;
-}
-
-#map.expanded {
-  top:0;
-  left:0;
-  width:100vw;
-  height:100vh;
-  border-radius:0;
 }
 
 #hud {
@@ -85,20 +77,58 @@ button {
   border-radius:10px; cursor:pointer;
 }
 
-#upload-modal, #end-screen {
+/* Upload Modal */
+#upload-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+#upload-modal.active {
+  display: flex !important;
+}
+
+.modal-box {
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90%;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  cursor: move;
+  position: relative;
+  animation: popIn 0.3s ease-out;
+}
+
+#upload-map {
+  height: 250px;
+  margin-top: 10px;
+  border-radius: 8px;
+}
+
+/* Pop-in animation */
+@keyframes popIn {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+#preview { width:100%; margin-top:10px; }
+
+#end-screen {
   position:fixed; inset:0;
   background:rgba(0,0,0,0.7);
   display:none; justify-content:center; align-items:center;
 }
+
+#end-screen .modal-box { background:white; padding:20px; border-radius:16px; width:400px; }
+
 .active { display:flex !important; }
-
-.modal-box {
-  background:white; padding:20px;
-  border-radius:16px; width:400px;
-}
-
-#upload-map { height:200px; margin-top:10px; }
-#preview { width:100%; margin-top:10px; }
 </style>
 </head>
 
@@ -208,7 +238,7 @@ map.on('click', e => {
   document.getElementById('submit-btn').disabled = false;
 });
 
-// TOGGLE MAP BUTTON (FIXED)
+// TOGGLE MAP BUTTON
 document.getElementById('toggle-map-btn').onclick = () => {
   mapOpen = !mapOpen;
 
@@ -242,7 +272,6 @@ document.getElementById('submit-btn').onclick = () => {
 
 function nextRound() {
   round++;
-
   if (round > 5) {
     showEndScreen();
     return;
@@ -273,10 +302,38 @@ function restartGame() {
 
 // UPLOAD MODAL
 const modal = document.getElementById('upload-modal');
+const modalBox = document.querySelector('#upload-modal .modal-box');
+
+let isDragging = false, offsetX = 0, offsetY = 0;
+
+modalBox.addEventListener('mousedown', e => {
+  isDragging = true;
+  offsetX = e.clientX - modalBox.getBoundingClientRect().left;
+  offsetY = e.clientY - modalBox.getBoundingClientRect().top;
+  modalBox.style.transition = 'none';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  modalBox.style.left = `${e.clientX - offsetX}px`;
+  modalBox.style.top = `${e.clientY - offsetY}px`;
+  modalBox.style.position = 'absolute';
+});
+
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    modalBox.style.transition = 'all 0.3s ease';
+  }
+});
 
 document.getElementById('upload-btn-open').onclick = () => {
   modal.classList.add('active');
-  setTimeout(()=>uploadMap.invalidateSize(),200);
+  modalBox.style.position = 'relative';
+  modalBox.style.left = '';
+  modalBox.style.top = '';
+
+  setTimeout(()=>uploadMap.invalidateSize(),300);
 };
 
 modal.onclick = e => { if (e.target === modal) modal.classList.remove('active'); };
