@@ -72,7 +72,7 @@ button { padding:12px 20px; font-size:16px; border:none; border-radius:8px; curs
 </div>
 
 <script>
-const supabaseClient = supabase.createClient('YOUR_URL','YOUR_KEY');
+const supabaseClient = supabase.createClient('https://hqdljdibiggoyihuoabe.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo');
 
 let map = L.map('map').setView([45.4215, -75.6972], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
