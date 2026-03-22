@@ -1,0 +1,225 @@
+HTML<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ottawa Guesser</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { margin:0; font-family:Arial, sans-serif; background:#f8f9fa; }
+    h1 { text-align:center; margin:15px 0; color:#333; }
+    #game { display:flex; height:calc(100vh - 140px); min-height:500px; }
+    #photo { flex:1; background:#000; display:flex; align-items:center; justify-content:center; }
+    #photo img { max-width:100%; max-height:100%; object-fit:contain; }
+    #map-container { flex:1; position:relative; }
+    #map { height:100%; }
+    .marker { background: #e74c3c; border:3px solid white; border-radius:50%; width:20px; height:20px; }
+    #submit-guess {
+      position:absolute; bottom:30px; left:50%; transform:translateX(-50%);
+      padding:15px 40px; font-size:20px; font-weight:bold; background:#e74c3c; color:white;
+      border:none; border-radius:8px; cursor:pointer; box-shadow:0 4px 10px rgba(0,0,0,0.3);
+    }
+    #submit-guess:hover { background:#c0392b; }
+    .upload-section {
+      padding:20px; background:#fff; border-top:1px solid #ddd; box-shadow:0 -2px 10px rgba(0,0,0,0.1);
+    }
+    .upload-section h2 { margin-top:0; color:#2c3e50; }
+  </style>
+</head>
+<body>
+
+  <h1>Ottawa Guesser 🗺️🏙️</h1>
+
+  <div id="game">
+    <div id="photo">
+      <img id="guess-photo" src="" alt="Guess this Ottawa location">
+    </div>
+    <div id="map-container">
+      <div id="map"></div>
+      <button id="submit-guess">Submit Guess</button>
+    </div>
+  </div>
+
+  <!-- Upload Section -->
+  <div class="upload-section">
+    <h2>Submit Your Own Ottawa Photo</h2>
+    <p>Help grow the game! Upload a photo and mark its exact location on the map.</p>
+    <input type="file" id="photo-upload" accept="image/*">
+    <div id="upload-map" style="height:320px; margin:15px 0; border:1px solid #ccc;"></div>
+    <button onclick="uploadPhoto()" style="padding:12px 30px; font-size:18px; background:#27ae60; color:white; border:none; border-radius:6px; cursor:pointer;">
+      Upload to Game
+    </button>
+  </div>
+
+  <script>
+    // ────────────────────────────────────────────────
+    //  REPLACE THESE TWO LINES WITH YOUR SUPABASE VALUES
+    // ────────────────────────────────────────────────
+    const supabaseUrl = 'https://hqdljdibiggoyihuoabe.supabase.co';          // ← YOUR PROJECT URL
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxZGxqZGliaWdnb3lpaHVvYWJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyMDcyOTUsImV4cCI6MjA4OTc4MzI5NX0.PBG0CCWtvqFV8M5xkerQIIiXMN4PhREVkyhEDn9aaqo';                     // ← anon key from Settings → API
+
+    const supabase = Supabase.createClient(supabaseUrl, supabaseKey);
+
+    // Haversine distance (km)
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2)**2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Ottawa approximate bounds
+    const ottawaBounds = L.latLngBounds(
+      L.latLng(45.25, -76.05),   // southwest
+      L.latLng(45.55, -75.40)    // northeast
+    );
+
+    // Main game map
+    const map = L.map('map', {
+      maxBounds: ottawaBounds,
+      maxZoom: 19,
+      minZoom: 11
+    }).setView([45.4215, -75.6972], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetView</a>'
+    }).addTo(map);
+
+    let guessMarker = null;
+    let actualMarker = null;
+    let actualLat, actualLng, currentPhotoUrl;
+
+    // ─── Load random photo from Supabase ───
+    async function loadRandomPhoto() {
+      const { data: photos, error } = await supabase.from('photos').select('*');
+
+      if (error) {
+        console.error('Load error:', error);
+        alert('Error loading photos. Check console.');
+        return;
+      }
+
+      if (!photos || photos.length === 0) {
+        alert('No photos yet! Submit some using the section below.');
+        document.getElementById('guess-photo').src = '';
+        return;
+      }
+
+      const random = photos[Math.floor(Math.random() * photos.length)];
+      document.getElementById('guess-photo').src = random.url;
+      currentPhotoUrl = random.url;
+      actualLat = random.lat;
+      actualLng = random.lng;
+
+      // Clear old markers
+      if (guessMarker) { map.removeLayer(guessMarker); guessMarker = null; }
+      if (actualMarker) { map.removeLayer(actualMarker); actualMarker = null; }
+    }
+
+    // User clicks map → place guess marker
+    map.on('click', function(e) {
+      if (guessMarker) map.removeLayer(guessMarker);
+      guessMarker = L.marker(e.latlng, {
+        icon: L.divIcon({ className: 'marker', iconSize: [20, 20] })
+      }).addTo(map);
+    });
+
+    // Submit guess button
+    document.getElementById('submit-guess').onclick = function() {
+      if (!guessMarker) {
+        alert('Click somewhere on the map to make your guess first!');
+        return;
+      }
+
+      const guessLatLng = guessMarker.getLatLng();
+      const distanceKm = haversine(guessLatLng.lat, guessLatLng.lng, actualLat, actualLng);
+
+      // Show actual location
+      if (actualMarker) map.removeLayer(actualMarker);
+      actualMarker = L.marker([actualLat, actualLng], {
+        icon: L.divIcon({ className: 'marker', html: '✓', iconSize: [24, 24] })
+      }).addTo(map);
+
+      L.polyline(
+        [[guessLatLng.lat, guessLatLng.lng], [actualLat, actualLng]],
+        { color: 'red', weight: 4, opacity: 0.7 }
+      ).addTo(map);
+
+      const score = Math.max(0, Math.round(5000 - distanceKm * 40));
+      alert(`Your guess was ${distanceKm.toFixed(2)} km away!\nScore: ${score} points`);
+
+      // Auto next round after delay
+      setTimeout(loadRandomPhoto, 2800);
+    };
+
+    // ─── Upload map & logic ───
+    let uploadMap, uploadMarker;
+
+    function initUploadMap() {
+      uploadMap = L.map('upload-map', {
+        maxBounds: ottawaBounds,
+        maxZoom: 19,
+        minZoom: 12
+      }).setView([45.4215, -75.6972], 13);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(uploadMap);
+
+      uploadMap.on('click', e => {
+        if (uploadMarker) uploadMap.removeLayer(uploadMarker);
+        uploadMarker = L.marker(e.latlng).addTo(uploadMap);
+      });
+    }
+
+    async function uploadPhoto() {
+      const fileInput = document.getElementById('photo-upload');
+      const file = fileInput.files[0];
+
+      if (!file) return alert('Please select a photo first.');
+      if (!uploadMarker) return alert('Please click the map to mark the exact location.');
+
+      const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.-]/g, '')}`;
+      const lat = uploadMarker.getLatLng().lat;
+      const lng = uploadMarker.getLatLng().lng;
+
+      try {
+        // 1. Upload to Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, file, { upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        // 2. Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        // 3. Save record
+        const { error: dbError } = await supabase
+          .from('photos')
+          .insert({ url: publicUrl, lat, lng });
+
+        if (dbError) throw dbError;
+
+        alert('Photo successfully added to the game! 🎉');
+        fileInput.value = ''; // clear input
+        if (uploadMarker) { uploadMap.removeLayer(uploadMarker); uploadMarker = null; }
+        loadRandomPhoto(); // refresh game
+      } catch (err) {
+        console.error(err);
+        alert('Upload failed: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    // Start the app
+    window.onload = function() {
+      initUploadMap();
+      loadRandomPhoto();
+    };
+  </script>
+</body>
+</html>
