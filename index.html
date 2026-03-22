@@ -162,6 +162,25 @@ let mapOpen = false;
 
 async function loadRound() {
   const { data } = await supabaseClient.from('photos').select('*');
+
+  // ensure photos exist
+  if (!data || data.length === 0) {
+    alert("No photos found in database");
+    return;
+  }
+
+  // Ottawa filter BUT fallback if empty
+  let ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat,p.lng]));
+  if (ottawaPhotos.length === 0) ottawaPhotos = data;
+
+  const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
+
+  document.getElementById('game-image').src = random.url;
+  actualLat = random.lat;
+  actualLng = random.lng;
+
+  resetMap();
+} = await supabaseClient.from('photos').select('*');
   const ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat,p.lng]));
   const random = ottawaPhotos[Math.floor(Math.random()*ottawaPhotos.length)];
 
@@ -184,7 +203,7 @@ function resetMap() {
   document.getElementById('submit-btn').disabled = true;
   document.getElementById('toggle-map-btn').innerText = "Open Map";
 
-  map.classList.remove('expanded');
+  map.getContainer().classList.remove('expanded');
 }
 
 map.on('click', e => {
@@ -201,14 +220,14 @@ document.getElementById('toggle-map-btn').onclick = () => {
   mapOpen = !mapOpen;
 
   if (mapOpen) {
-    map.classList.add('expanded');
+    map.getContainer().classList.add('expanded');
     document.getElementById('toggle-map-btn').innerText = "Close Map";
   } else {
-    map.classList.remove('expanded');
+    map.getContainer().classList.remove('expanded');
     document.getElementById('toggle-map-btn').innerText = "Open Map";
   }
 
-  setTimeout(()=>map.invalidateSize(),200);
+  setTimeout(()=>map.invalidateSize(),300);
 };
 
 // SUBMIT
@@ -230,7 +249,12 @@ document.getElementById('submit-btn').onclick = () => {
 
 function nextRound() {
   round++;
-  if (round > 5) return showEndScreen();
+
+  if (round > 5) {
+    showEndScreen();
+    return;
+  }
+
   document.getElementById('round').innerText = round;
   loadRound();
 }
