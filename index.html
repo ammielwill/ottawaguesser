@@ -31,7 +31,7 @@
       background: #141e24;
     }
 
-    /* Photo layer – geoguessr style */
+    /* Photo layer */
     #photo {
       position: absolute;
       inset: 0;
@@ -50,7 +50,7 @@
       transition: opacity 0.3s ease;
     }
 
-    /* Mini-map – geoguessr style floating panel */
+    /* Map */
     #map-wrapper {
       position: absolute;
       bottom: 24px;
@@ -76,7 +76,7 @@
       height: 100vh !important;
       border-radius: 0 !important;
       border: none !important;
-      z-index: 15 !important; /* Lower than controls so buttons show */
+      z-index: 15 !important;
       box-shadow: none;
     }
     #map {
@@ -85,12 +85,12 @@
       background: #1f2b32;
     }
 
-    /* HUD – top left - HIGHEST Z-INDEX */
+    /* HUD */
     #hud {
       position: absolute;
       top: 18px;
       left: 18px;
-      z-index: 100 !important; /* Always on top */
+      z-index: 100 !important;
       background: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -122,7 +122,7 @@
       color: #b8e2f2;
     }
 
-    /* Controls – bottom center - HIGHEST Z-INDEX */
+    /* Controls */
     #controls {
       position: fixed;
       bottom: 28px;
@@ -131,7 +131,7 @@
       display: flex;
       justify-content: center;
       gap: 12px;
-      z-index: 100 !important; /* Always on top of everything */
+      z-index: 100 !important;
       padding: 0 16px;
       flex-wrap: wrap;
       pointer-events: none;
@@ -179,8 +179,15 @@
     #upload-btn-open {
       background: rgba(60, 70, 80, 0.8);
     }
+    #admin-btn {
+      background: rgba(180, 60, 60, 0.8);
+      border-color: #ff6b6b;
+    }
+    #admin-btn:hover {
+      background: rgba(200, 70, 70, 0.9);
+    }
 
-    /* Upload modal – geoguessr style */
+    /* Upload Modal */
     #upload-modal {
       position: fixed;
       inset: 0;
@@ -280,6 +287,88 @@
       background: #3aa3cc;
     }
 
+    /* Admin Modal */
+    #admin-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 250 !important;
+      padding: 20px;
+    }
+    #admin-modal.active {
+      display: flex !important;
+    }
+    #admin-modal .modal-box {
+      max-width: 700px;
+      width: 95%;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .pending-photo {
+      background: #2a3a42;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid #3d535e;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .pending-photo img {
+      width: 120px;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .pending-photo .info {
+      flex: 1;
+    }
+    .pending-photo .info p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+      color: #c0dae6;
+    }
+    .pending-photo .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .pending-photo .actions button {
+      padding: 6px 16px;
+      border: none;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .approve-btn {
+      background: #2a8bb0;
+      color: white;
+    }
+    .approve-btn:hover {
+      background: #3aa3cc;
+    }
+    .reject-btn {
+      background: #8b2a2a;
+      color: white;
+    }
+    .reject-btn:hover {
+      background: #aa3a3a;
+    }
+    .no-pending {
+      text-align: center;
+      padding: 40px 0;
+      color: #8aa8b8;
+      font-size: 1.1rem;
+    }
+
     /* End screen */
     #end-screen {
       position: fixed;
@@ -333,6 +422,8 @@
       #map-wrapper { width: 160px; height: 120px; bottom: 16px; right: 16px; }
       #hud { font-size: 0.8rem; padding: 8px 14px; gap: 10px; }
       #controls button { padding: 10px 16px; min-width: 80px; font-size: 0.8rem; }
+      .pending-photo { flex-direction: column; align-items: center; }
+      .pending-photo img { width: 100%; height: 200px; }
     }
   </style>
 </head>
@@ -357,6 +448,7 @@
     <button id="toggle-map-btn">🗺️ Map</button>
     <button id="submit-btn" disabled>📍 Submit</button>
     <button id="upload-btn-open">📤 Upload</button>
+    <button id="admin-btn">🔐 Admin</button>
   </div>
 </div>
 
@@ -364,12 +456,25 @@
 <div id="upload-modal">
   <div class="modal-box">
     <h3>📸 Upload photo</h3>
+    <p style="color: #8aa8b8; font-size: 0.9rem; margin-bottom: 12px;">Your photo will be reviewed by an admin before appearing in the game.</p>
     <input type="file" id="photo-upload" accept="image/*">
     <img id="preview" style="display:block;">
     <div id="upload-map"></div>
     <div class="modal-actions">
       <button id="upload-close-btn">Cancel</button>
-      <button id="upload-submit">Upload</button>
+      <button id="upload-submit">Submit for Review</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Modal -->
+<div id="admin-modal">
+  <div class="modal-box">
+    <h3>🔐 Admin Panel - Pending Photos</h3>
+    <div id="pending-list"></div>
+    <div class="modal-actions" style="margin-top: 16px;">
+      <button id="admin-close-btn">Close</button>
+      <button id="admin-refresh-btn" style="background: #2a8bb0;">Refresh</button>
     </div>
   </div>
 </div>
@@ -417,6 +522,7 @@
     let round = 1, totalScore = 0, scores = [];
     let mapOpen = false;
     let isSubmitting = false;
+    let adminPassword = 'admin123'; // Simple password - in production use proper auth!
 
     // DOM refs
     const gameImage = document.getElementById('game-image');
@@ -426,11 +532,14 @@
     const toggleBtn = document.getElementById('toggle-map-btn');
     const mapWrapper = document.getElementById('map-wrapper');
     const modal = document.getElementById('upload-modal');
-    const modalBox = document.querySelector('#upload-modal .modal-box');
+    const adminModal = document.getElementById('admin-modal');
     const previewImg = document.getElementById('preview');
     const fileInput = document.getElementById('photo-upload');
     const uploadSubmit = document.getElementById('upload-submit');
     const uploadClose = document.getElementById('upload-close-btn');
+    const adminClose = document.getElementById('admin-close-btn');
+    const adminRefresh = document.getElementById('admin-refresh-btn');
+    const pendingList = document.getElementById('pending-list');
 
     // --- helpers ---
     function haversine(lat1, lng1, lat2, lng2) {
@@ -455,12 +564,16 @@
       toggleBtn.textContent = '🗺️ Map';
     }
 
-    // --- load round ---
+    // --- load round (only approved photos) ---
     async function loadRound() {
       try {
-        const { data } = await supabaseClient.from('photos').select('*');
+        const { data } = await supabaseClient
+          .from('photos')
+          .select('*')
+          .eq('approved', true); // Only show approved photos
+
         if (!data || data.length === 0) {
-          alert('No photos found in database. Please upload some!');
+          alert('No approved photos found. Please wait for admin approval or upload new photos.');
           return;
         }
         const ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat, p.lng]));
@@ -599,6 +712,7 @@
       });
     }
 
+    // --- UPLOAD with pending status ---
     uploadSubmit.addEventListener('click', async function() {
       const file = fileInput.files[0];
       if (!file) { alert('Please select an image file.'); return; }
@@ -627,15 +741,127 @@
         if (uploadError) throw uploadError;
         const { data: publicData } = supabaseClient.storage.from('photos').getPublicUrl(fileName);
         const url = publicData.publicUrl;
-        const { error: insertError } = await supabaseClient.from('photos').insert({ url, lat, lng });
+        
+        // Insert with approved = false (pending review)
+        const { error: insertError } = await supabaseClient.from('photos').insert({ 
+          url, 
+          lat, 
+          lng,
+          approved: false,
+          created_at: new Date().toISOString()
+        });
         if (insertError) throw insertError;
-        alert('✅ Photo uploaded!');
+        
+        alert('✅ Photo submitted for review! An admin will approve it shortly.');
         modal.classList.remove('active');
-        loadRound();
+        // Don't reload - pending photos won't show in game
       } catch (err) {
         alert('Upload error: ' + err.message);
         console.warn(err);
       }
+    });
+
+    // --- ADMIN FUNCTIONS ---
+    async function loadPendingPhotos() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('photos')
+          .select('*')
+          .eq('approved', false)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          pendingList.innerHTML = '<div class="no-pending">✨ No photos pending approval</div>';
+          return;
+        }
+
+        pendingList.innerHTML = data.map(photo => `
+          <div class="pending-photo" data-id="${photo.id}">
+            <img src="${photo.url}" alt="Pending photo">
+            <div class="info">
+              <p><strong>📍 Location:</strong> ${photo.lat.toFixed(5)}, ${photo.lng.toFixed(5)}</p>
+              <p><strong>🕐 Submitted:</strong> ${new Date(photo.created_at).toLocaleString()}</p>
+              <div class="actions">
+                <button class="approve-btn" onclick="approvePhoto('${photo.id}')">✅ Approve</button>
+                <button class="reject-btn" onclick="rejectPhoto('${photo.id}')">❌ Reject</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading pending photos:', err);
+        pendingList.innerHTML = '<div class="no-pending">❌ Error loading pending photos</div>';
+      }
+    }
+
+    // Make these functions globally accessible for inline onclick
+    window.approvePhoto = async function(id) {
+      if (!confirm('Approve this photo?')) return;
+      try {
+        const { error } = await supabaseClient
+          .from('photos')
+          .update({ approved: true })
+          .eq('id', id);
+        
+        if (error) throw error;
+        alert('✅ Photo approved!');
+        loadPendingPhotos();
+        loadRound(); // Reload game to include new photo
+      } catch (err) {
+        alert('Error approving: ' + err.message);
+      }
+    };
+
+    window.rejectPhoto = async function(id) {
+      if (!confirm('Reject this photo? It will be deleted.')) return;
+      try {
+        // First get the photo to delete from storage
+        const { data: photoData } = await supabaseClient
+          .from('photos')
+          .select('url')
+          .eq('id', id)
+          .single();
+
+        if (photoData) {
+          // Extract filename from URL
+          const urlParts = photoData.url.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          await supabaseClient.storage.from('photos').remove([fileName]);
+        }
+
+        // Delete from database
+        const { error } = await supabaseClient
+          .from('photos')
+          .delete()
+          .eq('id', id);
+        
+        if (error) throw error;
+        alert('❌ Photo rejected and deleted.');
+        loadPendingPhotos();
+      } catch (err) {
+        alert('Error rejecting: ' + err.message);
+      }
+    };
+
+    // --- Admin modal ---
+    document.getElementById('admin-btn').addEventListener('click', function() {
+      const password = prompt('Enter admin password:');
+      if (password === adminPassword) {
+        adminModal.classList.add('active');
+        loadPendingPhotos();
+      } else if (password !== null) {
+        alert('Incorrect password!');
+      }
+    });
+
+    adminClose.addEventListener('click', function() { 
+      adminModal.classList.remove('active'); 
+    });
+    adminRefresh.addEventListener('click', loadPendingPhotos);
+    adminModal.addEventListener('click', function(e) { 
+      if (e.target === adminModal) adminModal.classList.remove('active'); 
     });
 
     // --- init ---
