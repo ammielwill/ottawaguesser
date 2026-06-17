@@ -62,18 +62,21 @@
       overflow: hidden;
       box-shadow: 0 8px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
       border: 2px solid rgba(255,255,255,0.15);
-      transition: all 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+      transition: all 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1);
       background: #1e2a30;
       cursor: pointer;
     }
     #map-wrapper.expanded {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
       width: 100vw !important;
       height: 100vh !important;
-      bottom: 0 !important;
-      right: 0 !important;
       border-radius: 0 !important;
       border: none !important;
-      z-index: 40;
+      z-index: 15 !important; /* Lower than controls so buttons show */
       box-shadow: none;
     }
     #map {
@@ -82,12 +85,12 @@
       background: #1f2b32;
     }
 
-    /* HUD – top left */
+    /* HUD – top left - HIGHEST Z-INDEX */
     #hud {
       position: absolute;
       top: 18px;
       left: 18px;
-      z-index: 25;
+      z-index: 100 !important; /* Always on top */
       background: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -119,16 +122,16 @@
       color: #b8e2f2;
     }
 
-    /* Controls – bottom center */
+    /* Controls – bottom center - HIGHEST Z-INDEX */
     #controls {
-      position: absolute;
+      position: fixed;
       bottom: 28px;
       left: 0;
       width: 100%;
       display: flex;
       justify-content: center;
       gap: 12px;
-      z-index: 35;
+      z-index: 100 !important; /* Always on top of everything */
       padding: 0 16px;
       flex-wrap: wrap;
       pointer-events: none;
@@ -141,7 +144,7 @@
       font-weight: 600;
       font-size: 0.9rem;
       letter-spacing: 0.3px;
-      background: rgba(20, 30, 36, 0.75);
+      background: rgba(20, 30, 36, 0.85);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       color: #eef6fa;
@@ -153,7 +156,7 @@
       text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     }
     #controls button:hover {
-      background: rgba(40, 60, 70, 0.85);
+      background: rgba(40, 60, 70, 0.9);
       transform: scale(1.02);
       border-color: rgba(255,255,255,0.25);
     }
@@ -167,14 +170,14 @@
       pointer-events: none;
     }
     #submit-btn {
-      background: rgba(30, 120, 180, 0.8);
+      background: rgba(30, 120, 180, 0.85);
       border-color: #4db8ff;
     }
     #submit-btn:hover {
-      background: rgba(40, 150, 220, 0.9);
+      background: rgba(40, 150, 220, 0.95);
     }
     #upload-btn-open {
-      background: rgba(60, 70, 80, 0.7);
+      background: rgba(60, 70, 80, 0.8);
     }
 
     /* Upload modal – geoguessr style */
@@ -187,7 +190,7 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 100;
+      z-index: 200 !important;
       padding: 20px;
     }
     #upload-modal.active {
@@ -242,6 +245,7 @@
       border: 1px solid #2f434d;
       max-height: 180px;
       object-fit: cover;
+      display: none;
     }
     #upload-map {
       height: 200px;
@@ -286,7 +290,7 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 200;
+      z-index: 300 !important;
       padding: 20px;
     }
     #end-screen.active {
@@ -449,7 +453,6 @@
       mapOpen = false;
       mapWrapper.classList.remove('expanded');
       toggleBtn.textContent = '🗺️ Map';
-      // re-enable map clicks
     }
 
     // --- load round ---
@@ -467,7 +470,6 @@
         actualLat = random.lat;
         actualLng = random.lng;
         resetMapState();
-        // ensure map view
         map.setView([45.4215, -75.6972], 11);
       } catch (e) {
         console.warn('load error', e);
@@ -478,7 +480,6 @@
     map.on('click', function(e) {
       if (!mapOpen) return;
       if (!OTTAWA_BOUNDS.contains(e.latlng)) {
-        // subtle feedback instead of alert spam
         return;
       }
       if (guessMarker) map.removeLayer(guessMarker);
@@ -505,7 +506,6 @@
       if (isSubmitting || !guessMarker) return;
       isSubmitting = true;
       const guess = guessMarker.getLatLng();
-      // show actual
       actualMarker = L.marker([actualLat, actualLng], { color: 'red' }).addTo(map);
       const dist = haversine(guess.lat, guess.lng, actualLat, actualLng);
       const score = Math.max(0, Math.round(5000 - dist * 40));
@@ -514,7 +514,6 @@
       scoreSpan.textContent = totalScore;
 
       line = L.polyline([[guess.lat, guess.lng], [actualLat, actualLng]], { color: '#ff4d6d', weight: 3, opacity: 0.8 }).addTo(map);
-      // zoom to show both
       const bounds = L.latLngBounds([guess, [actualLat, actualLng]]);
       map.fitBounds(bounds, { padding: [30, 30] });
 
@@ -556,7 +555,6 @@
     // --- upload modal logic ---
     function openModal() {
       modal.classList.add('active');
-      // reset upload map
       if (uploadMarker) { uploadMap.removeLayer(uploadMarker); uploadMarker = null; }
       uploadMap.setView([45.4215, -75.6972], 11);
       setTimeout(() => uploadMap.invalidateSize(), 200);
