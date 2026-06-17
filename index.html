@@ -368,6 +368,21 @@
       color: #8aa8b8;
       font-size: 1.1rem;
     }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-pending {
+      background: #8b7a2a;
+      color: #ffd93d;
+    }
+    .status-approved {
+      background: #2a7a3a;
+      color: #6bff8a;
+    }
 
     /* End screen */
     #end-screen {
@@ -522,7 +537,7 @@
     let round = 1, totalScore = 0, scores = [];
     let mapOpen = false;
     let isSubmitting = false;
-    let adminPassword = 'admin123'; // Simple password - in production use proper auth!
+    let adminPassword = 'admin123';
 
     // DOM refs
     const gameImage = document.getElementById('game-image');
@@ -567,13 +582,19 @@
     // --- load round (only approved photos) ---
     async function loadRound() {
       try {
-        const { data } = await supabaseClient
+        const { data, error } = await supabaseClient
           .from('photos')
           .select('*')
-          .eq('approved', true); // Only show approved photos
+          .eq('approved', true);
+
+        if (error) {
+          console.error('Error loading photos:', error);
+          alert('Error loading photos. Check console for details.');
+          return;
+        }
 
         if (!data || data.length === 0) {
-          alert('No approved photos found. Please wait for admin approval or upload new photos.');
+          alert('No approved photos found. Please upload new photos or approve pending ones.');
           return;
         }
         const ottawaPhotos = data.filter(p => OTTAWA_BOUNDS.contains([p.lat, p.lng]));
@@ -770,7 +791,11 @@
           .eq('approved', false)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error loading pending photos:', error);
+          pendingList.innerHTML = `<div class="no-pending">❌ Error: ${error.message}</div>`;
+          return;
+        }
 
         if (!data || data.length === 0) {
           pendingList.innerHTML = '<div class="no-pending">✨ No photos pending approval</div>';
@@ -783,6 +808,7 @@
             <div class="info">
               <p><strong>📍 Location:</strong> ${photo.lat.toFixed(5)}, ${photo.lng.toFixed(5)}</p>
               <p><strong>🕐 Submitted:</strong> ${new Date(photo.created_at).toLocaleString()}</p>
+              <p><span class="status-badge status-pending">⏳ Pending</span></p>
               <div class="actions">
                 <button class="approve-btn" onclick="approvePhoto('${photo.id}')">✅ Approve</button>
                 <button class="reject-btn" onclick="rejectPhoto('${photo.id}')">❌ Reject</button>
@@ -791,57 +817,83 @@
           </div>
         `).join('');
       } catch (err) {
-        console.error('Error loading pending photos:', err);
+        console.error('Error in loadPendingPhotos:', err);
         pendingList.innerHTML = '<div class="no-pending">❌ Error loading pending photos</div>';
       }
     }
 
     // Make these functions globally accessible for inline onclick
     window.approvePhoto = async function(id) {
-      if (!confirm('Approve this photo?')) return;
+      if (!confirm('Approve this photo? It will appear in the game.')) return;
       try {
-        const { error } = await supabaseClient
+        const { data, error } = await supabaseClient
           .from('photos')
           .update({ approved: true })
-          .eq('id', id);
+          .eq('id', id)
+          .select();
+
+        if (error) {
+          console.error('Approve error:', error);
+          alert('❌ Error approving: ' + error.message + '\n\nCheck console for details.');
+          return;
+        }
         
-        if (error) throw error;
-        alert('✅ Photo approved!');
-        loadPendingPhotos();
-        loadRound(); // Reload game to include new photo
+        console.log('✅ Photo approved:', data);
+        alert('✅ Photo approved successfully!');
+        await loadPendingPhotos(); // Refresh the list
+        await loadRound(); // Reload game to include new photo
       } catch (err) {
-        alert('Error approving: ' + err.message);
+        console.error('Exception in approvePhoto:', err);
+        alert('❌ Error: ' + err.message);
       }
     };
 
     window.rejectPhoto = async function(id) {
-      if (!confirm('Reject this photo? It will be deleted.')) return;
+      if (!confirm('Reject this photo? It will be permanently deleted.')) return;
       try {
-        // First get the photo to delete from storage
-        const { data: photoData } = await supabaseClient
+        // First get the photo to get the URL for storage deletion
+        const { data: photoData, error: fetchError } = await supabaseClient
           .from('photos')
           .select('url')
           .eq('id', id)
           .single();
 
-        if (photoData) {
-          // Extract filename from URL
+        if (fetchError) {
+          console.error('Error fetching photo for rejection:', fetchError);
+          alert('❌ Error: ' + fetchError.message);
+          return;
+        }
+
+        // Delete from storage
+        if (photoData && photoData.url) {
           const urlParts = photoData.url.split('/');
           const fileName = urlParts[urlParts.length - 1];
-          await supabaseClient.storage.from('photos').remove([fileName]);
+          const { error: storageError } = await supabaseClient.storage
+            .from('photos')
+            .remove([fileName]);
+          
+          if (storageError) {
+            console.warn('Storage deletion error (continuing with DB delete):', storageError);
+          }
         }
 
         // Delete from database
-        const { error } = await supabaseClient
+        const { error: deleteError } = await supabaseClient
           .from('photos')
           .delete()
           .eq('id', id);
-        
-        if (error) throw error;
+
+        if (deleteError) {
+          console.error('Database deletion error:', deleteError);
+          alert('❌ Error deleting: ' + deleteError.message);
+          return;
+        }
+
         alert('❌ Photo rejected and deleted.');
-        loadPendingPhotos();
+        await loadPendingPhotos(); // Refresh the list
       } catch (err) {
-        alert('Error rejecting: ' + err.message);
+        console.error('Exception in rejectPhoto:', err);
+        alert('❌ Error: ' + err.message);
       }
     };
 
